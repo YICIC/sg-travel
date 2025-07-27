@@ -25,7 +25,6 @@ type Site = {
   images?: string[];
 };
 
-
 function toEmbedUrl(url: string) {
   const regex1 = /youtu\.be\/([a-zA-Z0-9_-]+)/;
   const regex2 = /youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/;
@@ -37,7 +36,7 @@ function toEmbedUrl(url: string) {
   if (match && match[1]) {
     return `https://www.youtube.com/embed/${match[1]}`;
   }
-  return url; // 如果不是YouTube链接就返回原地址
+  return url;
 }
 
 function ImageUploader({
@@ -49,7 +48,6 @@ function ImageUploader({
 }) {
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
-      // 生成本地URL预览
       const newUrls = acceptedFiles.map((file) => URL.createObjectURL(file));
       onChange([...images, ...newUrls]);
     },
@@ -61,7 +59,6 @@ function ImageUploader({
     accept: { "image/*": [] },
   });
 
-  // 支持删除预览图
   const handleRemove = (index: number) => {
     const updated = [...images];
     updated.splice(index, 1);
@@ -106,7 +103,6 @@ function ImageUploader({
   );
 }
 
-// 新增：Google Places Autocomplete 输入框组件
 function PlacesAutocompleteInput({
   onPlaceSelected,
   defaultValue = "",
@@ -115,17 +111,11 @@ function PlacesAutocompleteInput({
   defaultValue?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [autocomplete, setAutocomplete] =
-    useState<google.maps.places.Autocomplete | null>(null);
+  const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
 
   useEffect(() => {
     if (!inputRef.current || autocomplete) return;
-
-    if (
-      window.google &&
-      window.google.maps &&
-      window.google.maps.places
-    ) {
+    if (window.google?.maps?.places) {
       const auto = new window.google.maps.places.Autocomplete(inputRef.current, {
         types: ["geocode", "establishment"],
         componentRestrictions: { country: "sg" },
@@ -143,8 +133,7 @@ function PlacesAutocompleteInput({
 
       setAutocomplete(auto);
     }
-  }, [autocomplete]);
-
+  }, [autocomplete, onPlaceSelected]);
 
   return (
     <input
