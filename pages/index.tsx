@@ -4,7 +4,7 @@ import { useDropzone } from "react-dropzone";
 import { GoogleMap, Marker, LoadScript, OverlayView } from "@react-google-maps/api";
 import Link from "next/link";
 import Image from "next/image";
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../supabaseClient';
 
 const containerStyle = {
   width: "100%",
@@ -52,18 +52,24 @@ function ImageUploader({
   async function uploadImageToSupabase(file: File): Promise<string | null> {
     const fileExt = file.name.split('.').pop();
     const fileName = `${crypto.randomUUID()}.${fileExt}`;
-    const { data, error } = await supabase.storage
+
+    const { data: uploadData, error: uploadError } = await supabase.storage
       .from('site-images')
       .upload(fileName, file);
-  
-    if (error) {
-      alert('图片上传失败: ' + error.message);
+
+    if (uploadError) {
+      alert('图片上传失败: ' + uploadError.message);
       return null;
     }
-  
-    const { publicUrl } = supabase.storage.from('site-images').getPublicUrl(fileName);
-    return publicUrl;
+
+    // getPublicUrl 没有 error 字段，直接取 data.publicUrl
+    const { data: publicUrlData } = supabase.storage
+      .from('site-images')
+      .getPublicUrl(fileName);
+
+    return publicUrlData.publicUrl;
   }
+
   
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
