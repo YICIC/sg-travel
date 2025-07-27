@@ -48,10 +48,31 @@ function ImageUploader({
   images: string[];
   onChange: (images: string[]) => void;
 }) {
+  // 上传单张图片到 Supabase Storage，返回公开URL
+  async function uploadImageToSupabase(file: File): Promise<string | null> {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${crypto.randomUUID()}.${fileExt}`;
+    const { data, error } = await supabase.storage
+      .from('site-images')
+      .upload(fileName, file);
+  
+    if (error) {
+      alert('图片上传失败: ' + error.message);
+      return null;
+    }
+  
+    const { publicUrl } = supabase.storage.from('site-images').getPublicUrl(fileName);
+    return publicUrl;
+  }
+  
   const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
-      const newUrls = acceptedFiles.map((file) => URL.createObjectURL(file));
-      onChange([...images, ...newUrls]);
+    async (acceptedFiles: File[]) => {
+      const uploadedUrls: string[] = [];
+      for (const file of acceptedFiles) {
+        const url = await uploadImageToSupabase(file);
+        if (url) uploadedUrls.push(url);
+      }
+      onChange([...images, ...uploadedUrls]);
     },
     [images, onChange]
   );
@@ -150,6 +171,7 @@ function PlacesAutocompleteInput({
     />
   );
 }
+
 
 export default function Home() {
   // 初始化 sites，支持 localStorage 持久化
