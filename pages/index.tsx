@@ -4,7 +4,7 @@ import { useDropzone } from "react-dropzone";
 import { GoogleMap, Marker, LoadScript, OverlayView } from "@react-google-maps/api";
 import Link from "next/link";
 import Image from "next/image";
-import { supabase } from '../supabaseClient';
+import { supabase } from '../lib/supabaseClient';
 
 const containerStyle = {
   width: "100%",
