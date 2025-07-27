@@ -4,6 +4,7 @@ import { useDropzone } from "react-dropzone";
 import { GoogleMap, Marker, LoadScript, OverlayView } from "@react-google-maps/api";
 import Link from "next/link";
 import Image from "next/image";
+import { supabase } from '../lib/supabaseClient';
 
 const containerStyle = {
   width: "100%",
@@ -257,18 +258,44 @@ export default function Home() {
   };
 
   // 保存（新增或更新）
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editingSite) return;
     if (!editingSite.name.trim()) {
       alert("请填写站点名称");
       return;
     }
+
+    const newSite = { ...editingSite };
+  
+    // 区分是创建还是更新
+    const exists = sites.find((s) => s.id === newSite.id);
+  
+    if (exists) {
+      // 更新 Supabase 记录
+      const { error } = await supabase
+        .from("sites")
+        .update(newSite)
+        .eq("id", newSite.id);
+  
+      if (error) {
+        alert("更新失败：" + error.message);
+        return;
+      }
+    } else {
+      // 插入 Supabase 新记录
+      const { error } = await supabase.from("sites").insert(newSite);
+      if (error) {
+        alert("保存失败：" + error.message);
+        return;
+      }
+    }
+    
+    // 更新前端状态
     setSites((prev) => {
-      const exists = prev.find((s) => s.id === editingSite.id);
       if (exists) {
-        return prev.map((s) => (s.id === editingSite.id ? editingSite : s));
+        return prev.map((s) => (s.id === newSite.id ? newSite : s));
       } else {
-        return [...prev, editingSite];
+        return [...prev, newSite];
       }
     });
     setIsEditing(false);
