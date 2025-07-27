@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import Image from "next/image";
 
 type Site = {
   id: string;
@@ -39,9 +40,11 @@ export default function Cards() {
             onClick={() => handleCardClick(site.id)}
           >
             {site.images?.[0] && (
-              <img
+              <Image
                 src={site.images[0]}
                 alt={site.name}
+                width={600}
+                height={300}
                 className="w-full h-48 object-cover"
               />
             )}
