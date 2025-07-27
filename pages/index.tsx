@@ -296,7 +296,19 @@ export default function Home() {
   }, [sites]);
 
   const selectedSite = sites.find((s) => s.id === selectedSiteId);
-
+  
+  // 这里是状态声明部分
+  const [places, setPlaces] = useState<Place[]>([]);
+  // 这里是请求接口加载地点数据的副作用
+  useEffect(() => {
+    const fetchPlaces = async () => {
+      const res = await fetch('/api/get-places');
+      const data = await res.json();
+      setPlaces(data);
+    };
+    fetchPlaces();
+  }, []);
+    
   return (
     <>
       <LoadScript
