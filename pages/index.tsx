@@ -153,27 +153,18 @@ function PlacesAutocompleteInput({
 
 export default function Home() {
   // 初始化 sites，支持 localStorage 持久化
-  const [sites, setSites] = useState<Site[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const stored = localStorage.getItem("sites");
-      if (stored) return JSON.parse(stored);
-    } catch {}
-    return [
-      {
-        id: "gardens-by-the-bay",
-        name: "Gardens by the Bay",
-        lat: 1.2816,
-        lng: 103.8636,
-        description: "Futuristic park with Supertree Grove and Cloud Forest.",
-        video: "https://www.youtube.com/embed/8kzW7oFCbqs",
-        articles: [
-          "https://www.visitsingapore.com/see-do-singapore/nature-wildlife/parks-gardens/gardens-by-the-bay/",
-        ],
-        images: ["/images/gardens1.jpg", "/images/gardens2.jpg"],
-      },
-    ];
-  });
+  const [sites, setSites] = useState<Site[]>([]);
+  useEffect(() => {
+    const fetchSites = async () => {
+      const { data, error } = await supabase.from("sites").select("*");
+      if (error) {
+        console.error("加载失败", error);
+      } else if (data) {
+        setSites(data);
+      }
+    };
+    fetchSites();
+  }, []);
 
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -215,15 +206,20 @@ export default function Home() {
   };
 
   // 删除当前选中站点
-  const handleDelete = () => {
-    if (selectedSiteId) {
-      if (confirm("确定删除该站点吗？")) {
-        setSites(sites.filter((s) => s.id !== selectedSiteId));
-        setSelectedSiteId(null);
-        setEditingSite(null);
-        setIsEditing(false);
-      }
+  const handleDelete = async () => {
+    if (!selectedSiteId) return;
+    if (!confirm("确定删除该站点吗？")) return;
+  
+    const { error } = await supabase.from("sites").delete().eq("id", selectedSiteId);
+    if (error) {
+      alert("删除失败：" + error.message);
+      return;
     }
+  
+    setSites((prev) => prev.filter((s) => s.id !== selectedSiteId));
+    setSelectedSiteId(null);
+    setEditingSite(null);
+    setIsEditing(false);
   };
 
   // Marker 拖动结束，更新编辑站点经纬度
