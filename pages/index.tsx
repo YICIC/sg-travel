@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { GoogleMap, Marker, LoadScript, OverlayView } from "@react-google-maps/api";
 import Link from "next/link";
+import Image from "next/image";
 
 const containerStyle = {
   width: "100%",
@@ -81,9 +82,11 @@ function ImageUploader({
       <div className="mt-4 flex flex-wrap gap-2 justify-center">
         {images.map((url, i) => (
           <div key={i} className="relative inline-block">
-            <img
+            <Image
               src={url}
               alt={`preview-${i}`}
+              width={96}
+              height={96}
               className="w-24 h-24 object-cover rounded shadow"
             />
             <button
@@ -233,7 +236,7 @@ export default function Home() {
   };
 
   // 站点字段输入变化
-  const handleInputChange = (field: keyof Site, value: any) => {
+  const handleInputChange = <K extends keyof Site>(field: K, value: Site[K]) => {
     if (!editingSite) return;
     setEditingSite({ ...editingSite, [field]: value });
   };
@@ -456,10 +459,12 @@ export default function Home() {
                     <h3 className="font-semibold mb-1">图片:</h3>
                     <div className="flex flex-wrap gap-2 mb-2">
                       {selectedSite.images.map((img, i) => (
-                        <img
+                        <Image
                           key={i}
                           src={img}
                           alt={`${selectedSite.name} image ${i + 1}`}
+                          width={96}
+                          height={64}
                           className="w-24 h-16 object-cover rounded"
                         />
                       ))}
