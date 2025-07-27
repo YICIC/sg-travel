@@ -3,6 +3,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { GoogleMap, Marker, LoadScript, OverlayView } from "@react-google-maps/api";
 import Link from "next/link";
+import Image from "next/image";
+import { supabase } from '../lib/supabaseClient';
 
 const containerStyle = {
   width: "100%",
@@ -25,7 +27,6 @@ type Site = {
   images?: string[];
 };
 
-
 function toEmbedUrl(url: string) {
   const regex1 = /youtu\.be\/([a-zA-Z0-9_-]+)/;
   const regex2 = /youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/;
@@ -37,7 +38,7 @@ function toEmbedUrl(url: string) {
   if (match && match[1]) {
     return `https://www.youtube.com/embed/${match[1]}`;
   }
-  return url; // 如果不是YouTube链接就返回原地址
+  return url;
 }
 
 function ImageUploader({
@@ -47,11 +48,31 @@ function ImageUploader({
   images: string[];
   onChange: (images: string[]) => void;
 }) {
+  // 上传单张图片到 Supabase Storage，返回公开URL
+  async function uploadImageToSupabase(file: File): Promise<string | null> {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${crypto.randomUUID()}.${fileExt}`;
+    const { data, error } = await supabase.storage
+      .from('site-images')
+      .upload(fileName, file);
+  
+    if (error) {
+      alert('图片上传失败: ' + error.message);
+      return null;
+    }
+  
+    const { publicUrl } = supabase.storage.from('site-images').getPublicUrl(fileName);
+    return publicUrl;
+  }
+  
   const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
-      // 生成本地URL预览
-      const newUrls = acceptedFiles.map((file) => URL.createObjectURL(file));
-      onChange([...images, ...newUrls]);
+    async (acceptedFiles: File[]) => {
+      const uploadedUrls: string[] = [];
+      for (const file of acceptedFiles) {
+        const url = await uploadImageToSupabase(file);
+        if (url) uploadedUrls.push(url);
+      }
+      onChange([...images, ...uploadedUrls]);
     },
     [images, onChange]
   );
@@ -61,7 +82,6 @@ function ImageUploader({
     accept: { "image/*": [] },
   });
 
-  // 支持删除预览图
   const handleRemove = (index: number) => {
     const updated = [...images];
     updated.splice(index, 1);
@@ -84,9 +104,11 @@ function ImageUploader({
       <div className="mt-4 flex flex-wrap gap-2 justify-center">
         {images.map((url, i) => (
           <div key={i} className="relative inline-block">
-            <img
+            <Image
               src={url}
               alt={`preview-${i}`}
+              width={96}
+              height={96}
               className="w-24 h-24 object-cover rounded shadow"
             />
             <button
@@ -106,7 +128,6 @@ function ImageUploader({
   );
 }
 
-// 新增：Google Places Autocomplete 输入框组件
 function PlacesAutocompleteInput({
   onPlaceSelected,
   defaultValue = "",
@@ -115,17 +136,11 @@ function PlacesAutocompleteInput({
   defaultValue?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [autocomplete, setAutocomplete] =
-    useState<google.maps.places.Autocomplete | null>(null);
+  const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
 
   useEffect(() => {
     if (!inputRef.current || autocomplete) return;
-
-    if (
-      window.google &&
-      window.google.maps &&
-      window.google.maps.places
-    ) {
+    if (window.google?.maps?.places) {
       const auto = new window.google.maps.places.Autocomplete(inputRef.current, {
         types: ["geocode", "establishment"],
         componentRestrictions: { country: "sg" },
@@ -143,8 +158,7 @@ function PlacesAutocompleteInput({
 
       setAutocomplete(auto);
     }
-  }, [autocomplete]);
-
+  }, [autocomplete, onPlaceSelected]);
 
   return (
     <input
@@ -158,29 +172,21 @@ function PlacesAutocompleteInput({
   );
 }
 
+
 export default function Home() {
   // 初始化 sites，支持 localStorage 持久化
-  const [sites, setSites] = useState<Site[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const stored = localStorage.getItem("sites");
-      if (stored) return JSON.parse(stored);
-    } catch {}
-    return [
-      {
-        id: "gardens-by-the-bay",
-        name: "Gardens by the Bay",
-        lat: 1.2816,
-        lng: 103.8636,
-        description: "Futuristic park with Supertree Grove and Cloud Forest.",
-        video: "https://www.youtube.com/embed/8kzW7oFCbqs",
-        articles: [
-          "https://www.visitsingapore.com/see-do-singapore/nature-wildlife/parks-gardens/gardens-by-the-bay/",
-        ],
-        images: ["/images/gardens1.jpg", "/images/gardens2.jpg"],
-      },
-    ];
-  });
+  const [sites, setSites] = useState<Site[]>([]);
+  useEffect(() => {
+    const fetchSites = async () => {
+      const { data, error } = await supabase.from("sites").select("*");
+      if (error) {
+        console.error("加载失败", error);
+      } else if (data) {
+        setSites(data);
+      }
+    };
+    fetchSites();
+  }, []);
 
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -222,15 +228,20 @@ export default function Home() {
   };
 
   // 删除当前选中站点
-  const handleDelete = () => {
-    if (selectedSiteId) {
-      if (confirm("确定删除该站点吗？")) {
-        setSites(sites.filter((s) => s.id !== selectedSiteId));
-        setSelectedSiteId(null);
-        setEditingSite(null);
-        setIsEditing(false);
-      }
+  const handleDelete = async () => {
+    if (!selectedSiteId) return;
+    if (!confirm("确定删除该站点吗？")) return;
+  
+    const { error } = await supabase.from("sites").delete().eq("id", selectedSiteId);
+    if (error) {
+      alert("删除失败：" + error.message);
+      return;
     }
+  
+    setSites((prev) => prev.filter((s) => s.id !== selectedSiteId));
+    setSelectedSiteId(null);
+    setEditingSite(null);
+    setIsEditing(false);
   };
 
   // Marker 拖动结束，更新编辑站点经纬度
@@ -244,7 +255,7 @@ export default function Home() {
   };
 
   // 站点字段输入变化
-  const handleInputChange = (field: keyof Site, value: any) => {
+  const handleInputChange = <K extends keyof Site>(field: K, value: Site[K]) => {
     if (!editingSite) return;
     setEditingSite({ ...editingSite, [field]: value });
   };
@@ -265,18 +276,44 @@ export default function Home() {
   };
 
   // 保存（新增或更新）
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editingSite) return;
     if (!editingSite.name.trim()) {
       alert("请填写站点名称");
       return;
     }
+
+    const newSite = { ...editingSite };
+  
+    // 区分是创建还是更新
+    const exists = sites.find((s) => s.id === newSite.id);
+  
+    if (exists) {
+      // 更新 Supabase 记录
+      const { error } = await supabase
+        .from("sites")
+        .update(newSite)
+        .eq("id", newSite.id);
+  
+      if (error) {
+        alert("更新失败：" + error.message);
+        return;
+      }
+    } else {
+      // 插入 Supabase 新记录
+      const { error } = await supabase.from("sites").insert(newSite);
+      if (error) {
+        alert("保存失败：" + error.message);
+        return;
+      }
+    }
+    
+    // 更新前端状态
     setSites((prev) => {
-      const exists = prev.find((s) => s.id === editingSite.id);
       if (exists) {
-        return prev.map((s) => (s.id === editingSite.id ? editingSite : s));
+        return prev.map((s) => (s.id === newSite.id ? newSite : s));
       } else {
-        return [...prev, editingSite];
+        return [...prev, newSite];
       }
     });
     setIsEditing(false);
@@ -467,10 +504,12 @@ export default function Home() {
                     <h3 className="font-semibold mb-1">图片:</h3>
                     <div className="flex flex-wrap gap-2 mb-2">
                       {selectedSite.images.map((img, i) => (
-                        <img
+                        <Image
                           key={i}
                           src={img}
                           alt={`${selectedSite.name} image ${i + 1}`}
+                          width={96}
+                          height={64}
                           className="w-24 h-16 object-cover rounded"
                         />
                       ))}
